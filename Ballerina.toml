@@ -1,0 +1,9 @@
+[project]
+org-name= "maryamzi"
+version= "0.1.0"
+authors = ["maryamzi"]
+repository = "https://github.com/MaryamZi/b7a-websub-mysql-hub-store"
+keywords = ["websub","hub","store","mysql"]
+license = ["Apache-2.0"]
+
+[dependencies]
