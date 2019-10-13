@@ -30,12 +30,12 @@ public type MySqlHubPersistenceStore object {
 
     *websub:HubPersistenceStore;
 
-    private jdbc:Client subscriptionDbClient;
+    private jdbc:Client jdbcClient;
 
-    public function __init(jdbc:Client subscriptionDbClient) returns error? {
-        self.subscriptionDbClient = subscriptionDbClient;
-        _ = check self.subscriptionDbClient->update(CREATE_TOPICS_TABLE);
-        _ = check self.subscriptionDbClient->update(CREATE_SUBSCRIPTIONS_TABLE);
+    public function __init(jdbc:Client jdbcClient) returns error? {
+        self.jdbcClient = jdbcClient;
+        _ = check self.jdbcClient->update(CREATE_TOPICS_TABLE);
+        _ = check self.jdbcClient->update(CREATE_SUBSCRIPTIONS_TABLE);
     }
 
     # Function to add or update subscription details.
@@ -48,21 +48,19 @@ public type MySqlHubPersistenceStore object {
         jdbc:Parameter para4 = {sqlType: jdbc:TYPE_BIGINT, value: subscriptionDetails.leaseSeconds};
         jdbc:Parameter para5 = {sqlType: jdbc:TYPE_BIGINT, value: subscriptionDetails.createdAt};
 
-        var rowCount = self.subscriptionDbClient->update(DELETE_FROM_SUBSCRIPTIONS, <@untainted>para1, <@untainted>para2);
-        if (rowCount is jdbc:UpdateResult) {
-            log:printDebug("Successfully removed " + rowCount.toString() + " entries for existing subscription");
+        var result = self.jdbcClient->update(DELETE_FROM_SUBSCRIPTIONS, <@untainted>para1, <@untainted>para2);
+        if (result is jdbc:UpdateResult) {
+            log:printDebug("Successfully removed " + result.toString() + " entries for existing subscription");
         } else {
-            log:printError("Error occurred deleting subscription data: " + 
-                            (rowCount.detail()?.message ?: rowCount.reason()));
+            log:printError("Error occurred deleting subscription data: " + getErrorMessageToLog(result));
         }
 
-        rowCount = self.subscriptionDbClient->update(INSERT_INTO_SUBSCRIPTIONS, <@untainted>para1, <@untainted>para2,
-        <@untainted>para3, <@untainted>para4, <@untainted>para5);
-        if (rowCount is jdbc:UpdateResult) {
-            log:printDebug("Successfully updated " + rowCount.toString() + " entries for subscription");
+        result = self.jdbcClient->update(INSERT_INTO_SUBSCRIPTIONS, <@untainted>para1, <@untainted>para2,
+                                         <@untainted>para3, <@untainted>para4, <@untainted>para5);
+        if (result is jdbc:UpdateResult) {
+            log:printDebug("Successfully updated " + result.toString() + " entries for subscription");
         } else {
-            log:printError("Error occurred updating subscription data: " + 
-                            (rowCount.detail()?.message ?: rowCount.reason()));
+            log:printError("Error occurred updating subscription data: " + getErrorMessageToLog(result));
         }
     }
 
@@ -72,13 +70,12 @@ public type MySqlHubPersistenceStore object {
     public function removeSubscription(websub:SubscriptionDetails subscriptionDetails) {
         jdbc:Parameter para1 = {sqlType: jdbc:TYPE_VARCHAR, value: subscriptionDetails.topic};
         jdbc:Parameter para2 = {sqlType: jdbc:TYPE_VARCHAR, value: subscriptionDetails.callback};
-        var rowCount = self.subscriptionDbClient->update(DELETE_FROM_SUBSCRIPTIONS, <@untainted>para1, <@untainted>para2);
 
-        if (rowCount is jdbc:UpdateResult) {
-            log:printDebug("Successfully updated " + rowCount.toString() + " entries for unsubscription");
+        var result = self.jdbcClient->update(DELETE_FROM_SUBSCRIPTIONS, <@untainted>para1, <@untainted>para2);
+        if (result is jdbc:UpdateResult) {
+            log:printDebug("Successfully updated " + result.toString() + " entries for unsubscription");
         } else {
-            log:printError("Error occurred updating unsubscription data: " + 
-                            (rowCount.detail()?.message ?: rowCount.reason()));
+            log:printError("Error occurred updating unsubscription data: " + getErrorMessageToLog(result));
         }
     }
 
@@ -87,12 +84,12 @@ public type MySqlHubPersistenceStore object {
     # + topic - The topic to add
     public function addTopic(string topic) {
         jdbc:Parameter para1 = {sqlType: jdbc:TYPE_VARCHAR, value: topic};
-        var rowCount = self.subscriptionDbClient->update(INSERT_INTO_TOPICS, para1);
-        if (rowCount is jdbc:UpdateResult) {
-            log:printDebug("Successfully updated " + rowCount.toString() + " entries for topic registration");
+
+        var result = self.jdbcClient->update(INSERT_INTO_TOPICS, para1);
+        if (result is jdbc:UpdateResult) {
+            log:printDebug("Successfully updated " + result.toString() + " entries for topic registration");
         } else {
-            log:printError("Error occurred updating topic registration data: " + 
-                            (rowCount.detail()?.message ?: rowCount.reason()));
+            log:printError("Error occurred updating topic registration data: " + getErrorMessageToLog(result));
         }
     }
 
@@ -101,12 +98,12 @@ public type MySqlHubPersistenceStore object {
     # + topic - The topic to remove
     public function removeTopic(string topic) {
         jdbc:Parameter para1 = {sqlType: jdbc:TYPE_VARCHAR, value: topic};
-        var rowCount = self.subscriptionDbClient->update(DELETE_FROM_TOPICS, para1);
-        if (rowCount is jdbc:UpdateResult) {
-            log:printDebug("Successfully updated " + rowCount.toString() + " entries for topic unregistration");
+
+        var result = self.jdbcClient->update(DELETE_FROM_TOPICS, para1);
+        if (result is jdbc:UpdateResult) {
+            log:printDebug("Successfully updated " + result.toString() + " entries for topic unregistration");
         } else {
-            log:printError("Error occurred updating topic unregistration data: " + 
-                            (rowCount.detail()?.message ?: rowCount.reason()));
+            log:printError("Error occurred updating topic unregistration data: " + getErrorMessageToLog(result));
         }
     }
 
@@ -115,22 +112,19 @@ public type MySqlHubPersistenceStore object {
     # + return - An array of topics
     public function retrieveTopics() returns string[] {
         string[] topics = [];
-        int topicIndex = 0;
-        var dbResult = self.subscriptionDbClient->select(SELECT_ALL_FROM_TOPICS, TopicRegistration);
-        if (dbResult is table<record {}>) {
-            while (dbResult.hasNext()) {
-                var registrationDetails = trap <TopicRegistration>dbResult.getNext();
+        var result = self.jdbcClient->select(SELECT_ALL_FROM_TOPICS, TopicRegistration);
+        if (result is table<record {}>) {
+            while (result.hasNext()) {
+                TopicRegistration|error registrationDetails = trap <TopicRegistration> result.getNext();
                 if (registrationDetails is TopicRegistration) {
-                    topics[topicIndex] = registrationDetails.topic;
-                    topicIndex += 1;
+                    topics[topics.length()] = registrationDetails.topic;
                 } else {
                     log:printError("Error retreiving topic registration details from the database: " + 
-                                    (registrationDetails.detail()?.message ?: registrationDetails.reason()));
+                                    getErrorMessageToLog(registrationDetails));
                 }
             }
         } else {
-            log:printError("Error retreiving data from the database: " + 
-                            (dbResult.detail()?.message ?: dbResult.reason()));
+            log:printError("Error retreiving data from the database: " + getErrorMessageToLog(result));
         }
         return <@untainted> topics;
     }
@@ -140,26 +134,27 @@ public type MySqlHubPersistenceStore object {
     # + return - An array of subscriber details
     public function retrieveAllSubscribers() returns websub:SubscriptionDetails[] {
         websub:SubscriptionDetails[] subscriptions = [];
-        int subscriptionIndex = 0;
-        var dbResult = self.subscriptionDbClient->select(SELECT_FROM_SUBSCRIPTIONS, websub:SubscriptionDetails);
-        if (dbResult is table<record {}>) {
-            while (dbResult.hasNext()) {
-                var subscriptionDetails = trap <websub:SubscriptionDetails>dbResult.getNext();
+        var result = self.jdbcClient->select(SELECT_FROM_SUBSCRIPTIONS, websub:SubscriptionDetails);
+        if (result is table<record {}>) {
+            while (result.hasNext()) {
+                var subscriptionDetails = trap <websub:SubscriptionDetails> result.getNext();
                 if (subscriptionDetails is websub:SubscriptionDetails) {
-                    subscriptions[subscriptionIndex] = subscriptionDetails;
-                    subscriptionIndex += 1;
+                    subscriptions[subscriptions.length()] = subscriptionDetails;
                 } else {
                     log:printError("Error retreiving subscription details from the database: " + 
-                                    (subscriptionDetails.detail()?.message ?: subscriptionDetails.reason()));
+                                    getErrorMessageToLog(subscriptionDetails));
                 }
             }
         } else {
-            log:printError("Error retreiving data from the database: " + 
-                            (dbResult.detail()?.message ?: dbResult.reason()));
+            log:printError("Error retreiving data from the database: " + getErrorMessageToLog(result));
         }
         return <@untainted> subscriptions;
     }
 };
+
+function getErrorMessageToLog(error e) returns string {
+    return e.detail()?.message ?: e.reason();
+}
 
 type TopicRegistration record {|
     string topic;
