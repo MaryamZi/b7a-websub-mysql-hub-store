@@ -14,7 +14,7 @@ jdbc:Client jdbcClient = new({
     }
 });
 
-MySqlHubPersistenceStore store = checkpanic new(jdbcClient);
+MySqlHubPersistenceStore store = checkpanic new(jdbcClient, "random_test_keys".toBytes());
 
 const TOPIC_ONE = "topicOne";
 const TOPIC_TWO = "topicTwo";
@@ -26,7 +26,7 @@ final int timeTwoOne = time:currentTime().time;
 websub:SubscriptionDetails subOneOne = {
     topic: TOPIC_ONE,
     callback: "callback.one.one",
-    secret: "QweTyu",
+    secret: "QweTyuQw",
     leaseSeconds: 86400000,
     createdAt: timeOneOne
 };
@@ -41,7 +41,7 @@ websub:SubscriptionDetails subOneTwo = {
 websub:SubscriptionDetails subTwoOne = {
     topic: TOPIC_TWO,
     callback: "callback.two.one",
-    secret: "asdfg",
+    secret: "1asjfksnf112wsdf",
     leaseSeconds: 86400000,
     createdAt: timeTwoOne
 };

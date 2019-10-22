@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import ballerina/crypto;
+import ballerina/lang.array;
+import ballerina/lang.'string;
 import ballerina/log;
 import ballerina/websub;
 import ballerinax/java.jdbc;
@@ -31,11 +34,13 @@ public type MySqlHubPersistenceStore object {
     *websub:HubPersistenceStore;
 
     private jdbc:Client jdbcClient;
+    private byte[] key;
 
-    public function __init(jdbc:Client jdbcClient) returns error? {
+    public function __init(jdbc:Client jdbcClient, byte[] key) returns error? {
         self.jdbcClient = jdbcClient;
         _ = check self.jdbcClient->update(CREATE_TOPICS_TABLE);
         _ = check self.jdbcClient->update(CREATE_SUBSCRIPTIONS_TABLE);
+        self.key = key;
     }
 
     # Function to add or update subscription details.
@@ -44,7 +49,20 @@ public type MySqlHubPersistenceStore object {
     public function addSubscription(websub:SubscriptionDetails subscriptionDetails) {
         jdbc:Parameter para1 = {sqlType: jdbc:TYPE_VARCHAR, value: subscriptionDetails.topic};
         jdbc:Parameter para2 = {sqlType: jdbc:TYPE_VARCHAR, value: subscriptionDetails.callback};
-        jdbc:Parameter para3 = {sqlType: jdbc:TYPE_VARCHAR, value: subscriptionDetails.secret};
+
+        string secret = subscriptionDetails.secret;
+
+        if (secret.trim() != "") {
+            byte[] secretArr = subscriptionDetails.secret.toBytes();
+            byte[]|error encryptedSecret = crypto:encryptAesEcb(secretArr, self.key);
+            if (encryptedSecret is byte[]) {
+                secret = encryptedSecret.toBase64();
+            } else {
+                log:printError("Error encrypting secret: ", encryptedSecret);
+            }
+        }
+
+        jdbc:Parameter para3 = {sqlType: jdbc:TYPE_VARCHAR, value: secret};
         jdbc:Parameter para4 = {sqlType: jdbc:TYPE_BIGINT, value: subscriptionDetails.leaseSeconds};
         jdbc:Parameter para5 = {sqlType: jdbc:TYPE_BIGINT, value: subscriptionDetails.createdAt};
 
@@ -139,6 +157,26 @@ public type MySqlHubPersistenceStore object {
             while (result.hasNext()) {
                 var subscriptionDetails = trap <websub:SubscriptionDetails> result.getNext();
                 if (subscriptionDetails is websub:SubscriptionDetails) {
+                    if (subscriptionDetails.secret.trim() != "") {
+                        byte[]|error encryptedSecretAsByteArr = array:fromBase64(subscriptionDetails.secret);
+                        if (encryptedSecretAsByteArr is byte[]) {
+                            byte[]|error decryptedSecretArr = crypto:decryptAesEcb(encryptedSecretAsByteArr, self.key);
+
+                            if (decryptedSecretArr is byte[]) {
+                                string|error decryptedSecretString = 'string:fromBytes(decryptedSecretArr);
+                                if (decryptedSecretString is string) {
+                                    subscriptionDetails.secret = decryptedSecretString;
+                                } else {
+                                    log:printError("Error converting decrypted secret byte[] to string: ",
+                                                   decryptedSecretString);
+                                }
+                            } else {
+                                log:printError("Error decrypting secret: ", decryptedSecretArr);
+                            }
+                        } else {
+                            log:printError("Error converting encrypted secret string to byte[]: ", encryptedSecretAsByteArr);
+                        }
+                    }
                     subscriptions[subscriptions.length()] = subscriptionDetails;
                 } else {
                     log:printError("Error retreiving subscription details from the database: " + 
