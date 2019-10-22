@@ -40,6 +40,14 @@ public type MySqlHubPersistenceStore object {
         self.jdbcClient = jdbcClient;
         _ = check self.jdbcClient->update(CREATE_TOPICS_TABLE);
         _ = check self.jdbcClient->update(CREATE_SUBSCRIPTIONS_TABLE);
+
+        int keyLength = key.length();
+        if (keyLength != 16 && keyLength != 24 && keyLength != 32) {
+            return error("{maryamzi/websub.hub.mysqlstore}Error",
+                         message = "invalid key length '" + keyLength .toString() + "', expected a key of length " +
+                         "16, 24 or 32");
+        }
+
         self.key = key;
     }
 
