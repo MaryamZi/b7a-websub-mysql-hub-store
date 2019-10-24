@@ -1,6 +1,6 @@
 [project]
 org-name= "maryamzi"
-version= "0.1.1"
+version= "0.1.2"
 authors = ["maryamzi"]
 repository = "https://github.com/MaryamZi/b7a-websub-mysql-hub-store"
 keywords = ["websub","hub","store","mysql"]

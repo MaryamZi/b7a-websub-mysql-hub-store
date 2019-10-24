@@ -34,20 +34,21 @@ public type MySqlHubPersistenceStore object {
     *websub:HubPersistenceStore;
 
     private jdbc:Client jdbcClient;
-    private byte[] key;
+    private byte[]? key;
 
-    public function __init(jdbc:Client jdbcClient, byte[] key) returns error? {
+    public function __init(jdbc:Client jdbcClient, byte[]? key = ()) returns error? {
         self.jdbcClient = jdbcClient;
         _ = check self.jdbcClient->update(CREATE_TOPICS_TABLE);
         _ = check self.jdbcClient->update(CREATE_SUBSCRIPTIONS_TABLE);
 
-        int keyLength = key.length();
-        if (keyLength != 16 && keyLength != 24 && keyLength != 32) {
-            return error("{maryamzi/websub.hub.mysqlstore}Error",
-                         message = "invalid key length '" + keyLength .toString() + "', expected a key of length " +
-                         "16, 24 or 32");
+        if (key is byte[]) {
+            int keyLength = key.length();
+            if (keyLength != 16 && keyLength != 24 && keyLength != 32) {
+                return error("{maryamzi/websub.hub.mysqlstore}Error",
+                             message = "invalid key length '" + keyLength .toString() + "', expected a key of length " +
+                             "16, 24 or 32");
+            }
         }
-
         self.key = key;
     }
 
@@ -59,10 +60,10 @@ public type MySqlHubPersistenceStore object {
         jdbc:Parameter para2 = {sqlType: jdbc:TYPE_VARCHAR, value: subscriptionDetails.callback};
 
         string secret = subscriptionDetails.secret;
-
-        if (secret.trim() != "") {
+        byte[]? key = self.key;
+        if (secret.trim() != "" && key is byte[]) {
             byte[] secretArr = subscriptionDetails.secret.toBytes();
-            byte[]|error encryptedSecret = crypto:encryptAesEcb(secretArr, self.key);
+            byte[]|error encryptedSecret = crypto:encryptAesEcb(secretArr, key);
             if (encryptedSecret is byte[]) {
                 secret = encryptedSecret.toBase64();
             } else {
@@ -165,10 +166,11 @@ public type MySqlHubPersistenceStore object {
             while (result.hasNext()) {
                 var subscriptionDetails = trap <websub:SubscriptionDetails> result.getNext();
                 if (subscriptionDetails is websub:SubscriptionDetails) {
-                    if (subscriptionDetails.secret.trim() != "") {
+                    byte[]? key = self.key;
+                    if (subscriptionDetails.secret.trim() != "" && key is byte[]) {
                         byte[]|error encryptedSecretAsByteArr = array:fromBase64(subscriptionDetails.secret);
                         if (encryptedSecretAsByteArr is byte[]) {
-                            byte[]|error decryptedSecretArr = crypto:decryptAesEcb(encryptedSecretAsByteArr, self.key);
+                            byte[]|error decryptedSecretArr = crypto:decryptAesEcb(encryptedSecretAsByteArr, key);
 
                             if (decryptedSecretArr is byte[]) {
                                 string|error decryptedSecretString = 'string:fromBytes(decryptedSecretArr);
