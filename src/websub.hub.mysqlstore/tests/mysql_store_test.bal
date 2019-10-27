@@ -150,6 +150,19 @@ function testTopicRemoval() {
     test:assertEquals(topics[0], TOPIC_ONE);
 }
 
+@test:Config {
+    dependsOn: ["testTopicRemoval"]
+}
+function testRemovalAll() {
+    store->removeAll();
+
+    websub:SubscriptionDetails[] subs = store->retrieveAllSubscribers();
+    test:assertEquals(subs.length(), 0);
+
+    string[] topics = store->retrieveTopics();
+    test:assertEquals(topics.length(), 0);
+}
+
 @test:AfterSuite
 function teardown() {
     dropTableData();

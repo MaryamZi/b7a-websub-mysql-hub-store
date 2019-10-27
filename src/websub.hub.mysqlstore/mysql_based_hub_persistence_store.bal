@@ -23,11 +23,13 @@ const CREATE_TOPICS_TABLE = "CREATE TABLE IF NOT EXISTS topics (topic VARCHAR(25
 const INSERT_INTO_TOPICS = "INSERT INTO topics (topic) VALUES (?)";
 const DELETE_FROM_TOPICS = "DELETE FROM topics WHERE topic=?";
 const SELECT_ALL_FROM_TOPICS = "SELECT * FROM topics";
+const DELETE_ALL_TOPICS = "DELETE FROM topics";
 
 const CREATE_SUBSCRIPTIONS_TABLE = "CREATE TABLE IF NOT EXISTS subscriptions (topic VARCHAR(255), callback VARCHAR(255), secret VARCHAR(255), lease_seconds BIGINT, created_at BIGINT, PRIMARY KEY (topic, callback))";
 const INSERT_INTO_SUBSCRIPTIONS = "INSERT INTO subscriptions (topic,callback,secret,lease_seconds,created_at) VALUES (?,?,?,?,?)";
 const DELETE_FROM_SUBSCRIPTIONS = "DELETE FROM subscriptions WHERE topic=? AND callback=?";
 const SELECT_FROM_SUBSCRIPTIONS = "SELECT topic, callback, secret, lease_seconds, created_at FROM subscriptions";
+const DELETE_ALL_SUBSCRIPTIONS = "DELETE FROM subscriptions";
 
 public type MySqlHubPersistenceStore client object {
 
@@ -52,7 +54,7 @@ public type MySqlHubPersistenceStore client object {
         self.key = key;
     }
 
-    # Function to add or update subscription details.
+    # Remote method to add or update subscription details.
     #
     # + subscriptionDetails - The details of the subscription to add or update
     public remote function addSubscription(websub:SubscriptionDetails subscriptionDetails) {
@@ -91,7 +93,7 @@ public type MySqlHubPersistenceStore client object {
         }
     }
 
-    # Function to remove subscription details.
+    # Remote method to remove subscription details.
     #
     # + subscriptionDetails - The details of the subscription to remove
     public remote function removeSubscription(websub:SubscriptionDetails subscriptionDetails) {
@@ -106,7 +108,7 @@ public type MySqlHubPersistenceStore client object {
         }
     }
 
-    # Function to add a topic.
+    # Remote method to add a topic.
     #
     # + topic - The topic to add
     public remote function addTopic(string topic) {
@@ -120,7 +122,7 @@ public type MySqlHubPersistenceStore client object {
         }
     }
 
-    # Function to remove a topic.
+    # Remote method to remove a topic.
     #
     # + topic - The topic to remove
     public remote function removeTopic(string topic) {
@@ -134,7 +136,7 @@ public type MySqlHubPersistenceStore client object {
         }
     }
 
-    # Function to retrieve all registered topics.
+    # Remote method to retrieve all registered topics.
     #
     # + return - An array of topics
     public remote function retrieveTopics() returns string[] {
@@ -156,7 +158,7 @@ public type MySqlHubPersistenceStore client object {
         return <@untainted> topics;
     }
 
-    # Function to retrieve subscription details of all subscribers.
+    # Remote method to retrieve subscription details of all subscribers.
     #
     # + return - An array of subscriber details
     public remote function retrieveAllSubscribers() returns websub:SubscriptionDetails[] {
@@ -197,6 +199,32 @@ public type MySqlHubPersistenceStore client object {
             log:printError("Error retreiving data from the database: " + getErrorMessageToLog(result));
         }
         return <@untainted> subscriptions;
+    }
+    
+    # Remote method to delete all the registered topics.
+    public remote function removeTopics() {
+        var result = self.jdbcClient->update(DELETE_ALL_TOPICS);
+        if (result is jdbc:UpdateResult) {
+            log:printDebug("Successfully removed all topic entries");
+        } else {
+            log:printError("Error occurred deleting all topics: " + getErrorMessageToLog(result));
+        }
+    }
+
+    # Remote method to delete all the registered subscriptions.
+    public remote function removeSubscriptions() {
+        var result = self.jdbcClient->update(DELETE_ALL_SUBSCRIPTIONS);
+        if (result is jdbc:UpdateResult) {
+            log:printDebug("Successfully removed all subscription entries");
+        } else {
+            log:printError("Error occurred deleting all subscriptions: " + getErrorMessageToLog(result));
+        }
+    }
+
+    # Remote method to delete all the registered topics and subscriptions.
+    public remote function removeAll() {
+        self->removeSubscriptions();
+        self->removeTopics();
     }
 };
 
