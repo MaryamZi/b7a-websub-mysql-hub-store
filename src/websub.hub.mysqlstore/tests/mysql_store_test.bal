@@ -53,7 +53,7 @@ function setup() {
 
 @test:Config {}
 function testRetrieveTopicsWithNoTopics() {
-    string[] topics = store.retrieveTopics();
+    string[] topics = store->retrieveTopics();
     test:assertEquals(topics.length(), 0);
 }
 
@@ -61,10 +61,10 @@ function testRetrieveTopicsWithNoTopics() {
     dependsOn: ["testRetrieveTopicsWithNoTopics"]
 }
 function testTopicRegistrationAndRetrieval() {
-    store.addTopic(TOPIC_ONE);
-    store.addTopic(TOPIC_TWO);
+    store->addTopic(TOPIC_ONE);
+    store->addTopic(TOPIC_TWO);
 
-    string[] topics = store.retrieveTopics();
+    string[] topics = store->retrieveTopics();
     test:assertEquals(topics.length(), 2);
     test:assertEquals(topics[0], TOPIC_ONE);
     test:assertEquals(topics[1], TOPIC_TWO);
@@ -74,7 +74,7 @@ function testTopicRegistrationAndRetrieval() {
     dependsOn: ["testTopicRegistrationAndRetrieval"]
 }
 function testRetrieveSubscriptionsWithNoSubscriptions() {
-    websub:SubscriptionDetails[] subs = store.retrieveAllSubscribers();
+    websub:SubscriptionDetails[] subs = store->retrieveAllSubscribers();
     test:assertEquals(subs.length(), 0);
 }
 
@@ -82,11 +82,11 @@ function testRetrieveSubscriptionsWithNoSubscriptions() {
     dependsOn: ["testRetrieveSubscriptionsWithNoSubscriptions"]
 }
 function testSubscriptionRegistrationAndRetrieval() {
-    store.addSubscription(subOneOne);
-    store.addSubscription(subOneTwo);
-    store.addSubscription(subTwoOne);
+    store->addSubscription(subOneOne);
+    store->addSubscription(subOneTwo);
+    store->addSubscription(subTwoOne);
 
-    websub:SubscriptionDetails[] subs = store.retrieveAllSubscribers();
+    websub:SubscriptionDetails[] subs = store->retrieveAllSubscribers();
     test:assertEquals(subs.length(), 3);
 
     boolean subOneOneExists = false;
@@ -113,9 +113,9 @@ function testSubscriptionRegistrationAndRetrieval() {
     dependsOn: ["testSubscriptionRegistrationAndRetrieval"]
 }
 function testSubscriptionRemoval() {
-    store.removeSubscription(subOneOne);
+    store->removeSubscription(subOneOne);
 
-    websub:SubscriptionDetails[] subs = store.retrieveAllSubscribers();
+    websub:SubscriptionDetails[] subs = store->retrieveAllSubscribers();
     test:assertEquals(subs.length(), 2);
 
     boolean subOneTwoExists = false;
@@ -139,13 +139,13 @@ function testSubscriptionRemoval() {
     dependsOn: ["testSubscriptionRemoval"]
 }
 function testTopicRemoval() {
-    string[] topics = store.retrieveTopics();
+    string[] topics = store->retrieveTopics();
     test:assertEquals(topics.length(), 2);
     test:assertEquals(topics[0], TOPIC_ONE);
     test:assertEquals(topics[1], TOPIC_TWO);
 
-    store.removeTopic(TOPIC_TWO);
-    topics = store.retrieveTopics();
+    store->removeTopic(TOPIC_TWO);
+    topics = store->retrieveTopics();
     test:assertEquals(topics.length(), 1);
     test:assertEquals(topics[0], TOPIC_ONE);
 }

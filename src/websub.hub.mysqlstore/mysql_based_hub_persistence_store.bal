@@ -29,7 +29,7 @@ const INSERT_INTO_SUBSCRIPTIONS = "INSERT INTO subscriptions (topic,callback,sec
 const DELETE_FROM_SUBSCRIPTIONS = "DELETE FROM subscriptions WHERE topic=? AND callback=?";
 const SELECT_FROM_SUBSCRIPTIONS = "SELECT topic, callback, secret, lease_seconds, created_at FROM subscriptions";
 
-public type MySqlHubPersistenceStore object {
+public type MySqlHubPersistenceStore client object {
 
     *websub:HubPersistenceStore;
 
@@ -55,7 +55,7 @@ public type MySqlHubPersistenceStore object {
     # Function to add or update subscription details.
     #
     # + subscriptionDetails - The details of the subscription to add or update
-    public function addSubscription(websub:SubscriptionDetails subscriptionDetails) {
+    public remote function addSubscription(websub:SubscriptionDetails subscriptionDetails) {
         jdbc:Parameter para1 = {sqlType: jdbc:TYPE_VARCHAR, value: subscriptionDetails.topic};
         jdbc:Parameter para2 = {sqlType: jdbc:TYPE_VARCHAR, value: subscriptionDetails.callback};
 
@@ -94,7 +94,7 @@ public type MySqlHubPersistenceStore object {
     # Function to remove subscription details.
     #
     # + subscriptionDetails - The details of the subscription to remove
-    public function removeSubscription(websub:SubscriptionDetails subscriptionDetails) {
+    public remote function removeSubscription(websub:SubscriptionDetails subscriptionDetails) {
         jdbc:Parameter para1 = {sqlType: jdbc:TYPE_VARCHAR, value: subscriptionDetails.topic};
         jdbc:Parameter para2 = {sqlType: jdbc:TYPE_VARCHAR, value: subscriptionDetails.callback};
 
@@ -109,7 +109,7 @@ public type MySqlHubPersistenceStore object {
     # Function to add a topic.
     #
     # + topic - The topic to add
-    public function addTopic(string topic) {
+    public remote function addTopic(string topic) {
         jdbc:Parameter para1 = {sqlType: jdbc:TYPE_VARCHAR, value: topic};
 
         var result = self.jdbcClient->update(INSERT_INTO_TOPICS, para1);
@@ -123,7 +123,7 @@ public type MySqlHubPersistenceStore object {
     # Function to remove a topic.
     #
     # + topic - The topic to remove
-    public function removeTopic(string topic) {
+    public remote function removeTopic(string topic) {
         jdbc:Parameter para1 = {sqlType: jdbc:TYPE_VARCHAR, value: topic};
 
         var result = self.jdbcClient->update(DELETE_FROM_TOPICS, para1);
@@ -137,7 +137,7 @@ public type MySqlHubPersistenceStore object {
     # Function to retrieve all registered topics.
     #
     # + return - An array of topics
-    public function retrieveTopics() returns string[] {
+    public remote function retrieveTopics() returns string[] {
         string[] topics = [];
         var result = self.jdbcClient->select(SELECT_ALL_FROM_TOPICS, TopicRegistration);
         if (result is table<record {}>) {
@@ -159,7 +159,7 @@ public type MySqlHubPersistenceStore object {
     # Function to retrieve subscription details of all subscribers.
     #
     # + return - An array of subscriber details
-    public function retrieveAllSubscribers() returns websub:SubscriptionDetails[] {
+    public remote function retrieveAllSubscribers() returns websub:SubscriptionDetails[] {
         websub:SubscriptionDetails[] subscriptions = [];
         var result = self.jdbcClient->select(SELECT_FROM_SUBSCRIPTIONS, websub:SubscriptionDetails);
         if (result is table<record {}>) {
