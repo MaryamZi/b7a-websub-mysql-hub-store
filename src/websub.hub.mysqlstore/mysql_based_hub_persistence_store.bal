@@ -19,6 +19,8 @@ import ballerina/log;
 import ballerina/websub;
 import ballerinax/java.jdbc;
 
+const ERROR_REASON = "{maryamzi/websub.hub.mysqlstore}Error";
+
 const CREATE_TOPICS_TABLE = "CREATE TABLE IF NOT EXISTS topics (topic VARCHAR(255), PRIMARY KEY (topic))";
 const INSERT_INTO_TOPICS = "INSERT INTO topics (topic) VALUES (?)";
 const DELETE_FROM_TOPICS = "DELETE FROM topics WHERE topic=?";
@@ -46,7 +48,7 @@ public type MySqlHubPersistenceStore client object {
         if (key is byte[]) {
             int keyLength = key.length();
             if (keyLength != 16 && keyLength != 24 && keyLength != 32) {
-                return error("{maryamzi/websub.hub.mysqlstore}Error",
+                return error(ERROR_REASON,
                              message = "invalid key length '" + keyLength .toString() + "', expected a key of length " +
                              "16, 24 or 32");
             }
@@ -57,7 +59,8 @@ public type MySqlHubPersistenceStore client object {
     # Remote method to add or update subscription details.
     #
     # + subscriptionDetails - The details of the subscription to add or update
-    public remote function addSubscription(websub:SubscriptionDetails subscriptionDetails) {
+    # + return - `error` if addition failed, `()` otherwise
+    public remote function addSubscription(websub:SubscriptionDetails subscriptionDetails) returns error? {
         jdbc:Parameter para1 = {sqlType: jdbc:TYPE_VARCHAR, value: subscriptionDetails.topic};
         jdbc:Parameter para2 = {sqlType: jdbc:TYPE_VARCHAR, value: subscriptionDetails.callback};
 
@@ -69,7 +72,7 @@ public type MySqlHubPersistenceStore client object {
             if (encryptedSecret is byte[]) {
                 secret = encryptedSecret.toBase64();
             } else {
-                log:printError("Error encrypting secret: ", encryptedSecret);
+                return error(ERROR_REASON, message = "Error encrypting secret", cause = encryptedSecret);
             }
         }
 
@@ -81,7 +84,7 @@ public type MySqlHubPersistenceStore client object {
         if (result is jdbc:UpdateResult) {
             log:printDebug("Successfully removed " + result.toString() + " entries for existing subscription");
         } else {
-            log:printError("Error occurred deleting subscription data: " + getErrorMessageToLog(result));
+            return error(ERROR_REASON, message = "Error occurred deleting subscription data", cause = result);
         }
 
         result = self.jdbcClient->update(INSERT_INTO_SUBSCRIPTIONS, <@untainted>para1, <@untainted>para2,
@@ -89,14 +92,15 @@ public type MySqlHubPersistenceStore client object {
         if (result is jdbc:UpdateResult) {
             log:printDebug("Successfully updated " + result.toString() + " entries for subscription");
         } else {
-            log:printError("Error occurred updating subscription data: " + getErrorMessageToLog(result));
+            return error(ERROR_REASON, message = "Error occurred updating subscription data", cause = result);
         }
     }
 
     # Remote method to remove subscription details.
     #
     # + subscriptionDetails - The details of the subscription to remove
-    public remote function removeSubscription(websub:SubscriptionDetails subscriptionDetails) {
+    # + return - `error` if removal failed, `()` otherwise
+    public remote function removeSubscription(websub:SubscriptionDetails subscriptionDetails) returns error? {
         jdbc:Parameter para1 = {sqlType: jdbc:TYPE_VARCHAR, value: subscriptionDetails.topic};
         jdbc:Parameter para2 = {sqlType: jdbc:TYPE_VARCHAR, value: subscriptionDetails.callback};
 
@@ -104,42 +108,44 @@ public type MySqlHubPersistenceStore client object {
         if (result is jdbc:UpdateResult) {
             log:printDebug("Successfully updated " + result.toString() + " entries for unsubscription");
         } else {
-            log:printError("Error occurred updating unsubscription data: " + getErrorMessageToLog(result));
+            return error(ERROR_REASON, message = "Error occurred updating unsubscription data", cause = result);
         }
     }
 
     # Remote method to add a topic.
     #
     # + topic - The topic to add
-    public remote function addTopic(string topic) {
+    # + return - `error` if addition failed, `()` otherwise
+    public remote function addTopic(string topic) returns error? {
         jdbc:Parameter para1 = {sqlType: jdbc:TYPE_VARCHAR, value: topic};
 
         var result = self.jdbcClient->update(INSERT_INTO_TOPICS, para1);
         if (result is jdbc:UpdateResult) {
             log:printDebug("Successfully updated " + result.toString() + " entries for topic registration");
         } else {
-            log:printError("Error occurred updating topic registration data: " + getErrorMessageToLog(result));
+            return error(ERROR_REASON, message = "Error occurred updating topic registration data", cause = result);
         }
     }
 
     # Remote method to remove a topic.
     #
     # + topic - The topic to remove
-    public remote function removeTopic(string topic) {
+    # + return - `error` if removal failed, `()` otherwise
+    public remote function removeTopic(string topic) returns error? {
         jdbc:Parameter para1 = {sqlType: jdbc:TYPE_VARCHAR, value: topic};
 
         var result = self.jdbcClient->update(DELETE_FROM_TOPICS, para1);
         if (result is jdbc:UpdateResult) {
             log:printDebug("Successfully updated " + result.toString() + " entries for topic unregistration");
         } else {
-            log:printError("Error occurred updating topic unregistration data: " + getErrorMessageToLog(result));
+            return error(ERROR_REASON, message = "Error occurred updating topic unregistration data", cause = result);
         }
     }
 
     # Remote method to retrieve all registered topics.
     #
-    # + return - An array of topics
-    public remote function retrieveTopics() returns string[] {
+    # + return - `error` if retrieval failed, `string[]` otherwise
+    public remote function retrieveTopics() returns @tainted string[]|error {
         string[] topics = [];
         var result = self.jdbcClient->select(SELECT_ALL_FROM_TOPICS, TopicRegistration);
         if (result is table<record {}>) {
@@ -148,20 +154,21 @@ public type MySqlHubPersistenceStore client object {
                 if (registrationDetails is TopicRegistration) {
                     topics[topics.length()] = registrationDetails.topic;
                 } else {
-                    log:printError("Error retreiving topic registration details from the database: " + 
-                                    getErrorMessageToLog(registrationDetails));
+                    return error(ERROR_REASON,
+                                 message = "Error retreiving topic registration details from the database",
+                                 cause = registrationDetails);
                 }
             }
         } else {
-            log:printError("Error retreiving data from the database: " + getErrorMessageToLog(result));
+            return error(ERROR_REASON, message = "Error retreiving topic data from the database", cause = result);
         }
         return <@untainted> topics;
     }
 
     # Remote method to retrieve subscription details of all subscribers.
     #
-    # + return - An array of subscriber details
-    public remote function retrieveAllSubscribers() returns websub:SubscriptionDetails[] {
+    # + return - `error` if addition failed, `websub:SubscriptionDetails[]` otherwise
+    public remote function retrieveAllSubscribers() returns @tainted websub:SubscriptionDetails[]|error {
         websub:SubscriptionDetails[] subscriptions = [];
         var result = self.jdbcClient->select(SELECT_FROM_SUBSCRIPTIONS, websub:SubscriptionDetails);
         if (result is table<record {}>) {
@@ -179,58 +186,63 @@ public type MySqlHubPersistenceStore client object {
                                 if (decryptedSecretString is string) {
                                     subscriptionDetails.secret = decryptedSecretString;
                                 } else {
-                                    log:printError("Error converting decrypted secret byte[] to string: ",
-                                                   decryptedSecretString);
+                                    return error(ERROR_REASON,
+                                                 message = "Error converting decrypted secret byte[] to string",
+                                                 cause = decryptedSecretString);
                                 }
                             } else {
-                                log:printError("Error decrypting secret: ", decryptedSecretArr);
+                                return error(ERROR_REASON, message = "Error decrypting secret",
+                                             cause = decryptedSecretArr);
                             }
                         } else {
-                            log:printError("Error converting encrypted secret string to byte[]: ", encryptedSecretAsByteArr);
+                            return error(ERROR_REASON, message = "Error converting encrypted secret string to byte[]",
+                                         cause = encryptedSecretAsByteArr);
                         }
                     }
                     subscriptions[subscriptions.length()] = subscriptionDetails;
                 } else {
-                    log:printError("Error retreiving subscription details from the database: " + 
-                                    getErrorMessageToLog(subscriptionDetails));
+                    return error(ERROR_REASON, message = "Error retreiving subscription details from the database",
+                                 cause = subscriptionDetails);
                 }
             }
         } else {
-            log:printError("Error retreiving data from the database: " + getErrorMessageToLog(result));
+            return error(ERROR_REASON, message = "Error retreiving subscription data from the database", cause = result);
         }
         return <@untainted> subscriptions;
     }
     
     # Remote method to delete all the registered topics.
-    public remote function removeTopics() {
+    #
+    # + return - `error` if removal failed, `()` otherwise
+    public remote function removeTopics() returns error? {
         var result = self.jdbcClient->update(DELETE_ALL_TOPICS);
         if (result is jdbc:UpdateResult) {
             log:printDebug("Successfully removed all topic entries");
         } else {
-            log:printError("Error occurred deleting all topics: " + getErrorMessageToLog(result));
+            return error(ERROR_REASON, message = "Error occurred deleting all topics", cause = result);
         }
     }
 
     # Remote method to delete all the registered subscriptions.
-    public remote function removeSubscriptions() {
+    #
+    # + return - `error` if removal failed, `()` otherwise
+    public remote function removeSubscriptions() returns error? {
         var result = self.jdbcClient->update(DELETE_ALL_SUBSCRIPTIONS);
         if (result is jdbc:UpdateResult) {
             log:printDebug("Successfully removed all subscription entries");
         } else {
-            log:printError("Error occurred deleting all subscriptions: " + getErrorMessageToLog(result));
+            return error(ERROR_REASON, message = "Error occurred deleting all subscriptions", cause = result);
         }
     }
 
     # Remote method to delete all the registered topics and subscriptions.
-    public remote function removeAll() {
-        self->removeSubscriptions();
-        self->removeTopics();
+    #
+    # + return - `error` if removal failed, `()` otherwise
+    public remote function removeAll() returns error? {
+        check self->removeSubscriptions();
+        check self->removeTopics();
     }
 };
-
-function getErrorMessageToLog(error e) returns string {
-    return e.detail()?.message ?: e.reason();
-}
 
 type TopicRegistration record {|
     string topic;
